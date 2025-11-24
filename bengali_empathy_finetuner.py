@@ -15,6 +15,21 @@ import torch
 from datasets import Dataset, DatasetDict
 from tqdm.auto import tqdm
 
+# ---- NEW: Kaggle secrets + HF login ----
+from kaggle_secrets import UserSecretsClient
+from huggingface_hub import login
+
+user_secrets = UserSecretsClient()
+hf_token = user_secrets.get_secret("HF_TOKEN")  # must match the secret name in Kaggle
+
+# make token available to HF libs
+os.environ["HF_TOKEN"] = hf_token
+os.environ["HUGGINGFACE_HUB_TOKEN"] = hf_token
+
+# login so gated repos (Llama 3.1) work
+login(token=hf_token)
+
+
 # --------------------------------------------------------
 # Unsloth FIRST (for best optimisation) - before transformers/peft
 # --------------------------------------------------------
@@ -68,22 +83,22 @@ class BengaliEmpathyFineTuner:
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         # Default configuration
         self.cfg: Dict[str, Any] = {
-            # Paths (Kaggle defaults)
+            # Paths (Kaggle defaults)  ---- NOTE: removed stray space before .csv
             "data_path": "/kaggle/input/bengali-empathetic-conversations-corpus/BengaliEmpatheticConversationsCorpus .csv",
             "output_dir": "/kaggle/working/llama31_bengali_empathy",
             "log_base_path": "/kaggle/working/llama_empathy_experiments.db",
 
             # Model IDs
             "base_model_id_unsloth": "unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit",
-            "base_model_id_hf": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+            "base_model_id_hf": "meta-llama/Llama-3.1-8B-Instruct",
 
             # Strategy: Unsloth QLoRA (True) or HF QLoRA (False)
-            "use_unsloth": False,
+            "use_unsloth": True,
 
             # Training
             "max_seq_length": 2048,
             "learning_rate": 2e-4,
-            "num_train_epochs": 2.0,
+            "num_train_epochs": 1.0,
             "per_device_train_batch_size": 1,
             "gradient_accumulation_steps": 8,
             "warmup_ratio": 0.03,
@@ -419,54 +434,15 @@ class BengaliEmpathyFineTuner:
 
     # ------------------ Build model & tokenizer ------------------------
 
-    # def build_tokenizer_and_model(self):
-    #     if self.cfg["use_unsloth"]:
-    #         if not HAVE_UNSLOTH:
-    #             raise ImportError(
-    #                 "Unsloth not installed."
-    #             )
-    #         print("[Unsloth] Loading 4-bit model:", self.cfg["base_model_id_unsloth"])
-    #         self.model, self.tokenizer = FastLanguageModel.from_pretrained(
-    #             model_name=self.cfg["base_model_id_unsloth"],
-    #             max_seq_length=self.cfg["max_seq_length"],
-    #             dtype=None,
-    #             load_in_4bit=True,
-    #         )
-    #         self.strategy_name = "unsloth_qlora"
-    #     else:
-    #         if not HAVE_BNB:
-    #             raise ImportError("bitsandbytes not available for HF QLoRA backend.")
-    #         print("[HF QLoRA] Loading 4-bit model:", self.cfg["base_model_id_hf"])
-    #         bnb_config = BitsAndBytesConfig(
-    #             load_in_4bit=True,
-    #             bnb_4bit_use_double_quant=True,
-    #             bnb_4bit_quant_type="nf4",
-    #             bnb_4bit_compute_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float16,
-    #         )
-    #         self.tokenizer = AutoTokenizer.from_pretrained(self.cfg["base_model_id_hf"], use_fast=True)
-    #         self.tokenizer.pad_token = self.tokenizer.eos_token
-    #         self.tokenizer.padding_side = "right"
-    #         self.model = AutoModelForCausalLM.from_pretrained(
-    #             self.cfg["base_model_id_hf"],
-    #             quantization_config=bnb_config,
-    #             device_map="auto",
-    #         )
-    #         self.model.config.use_cache = False
-    #         from peft import prepare_model_for_kbit_training
-    #         self.model = prepare_model_for_kbit_training(self.model)
-    #         self.strategy_name = "hf_qlora"
-
-    #     self.tokenizer.pad_token = self.tokenizer.eos_token
-    #     self.tokenizer.padding_side = "right"
-    #     return self.tokenizer, self.model
-
     def build_tokenizer_and_model(self):
         # If config says "use_unsloth" but Unsloth import failed, fall back automatically
         if self.cfg["use_unsloth"] and not HAVE_UNSLOTH:
             print("[WARN] use_unsloth=True but Unsloth is not installed. "
                   "Falling back to HF QLoRA backend.")
             self.cfg["use_unsloth"] = False
-    
+
+        hf_token = os.environ.get("HF_TOKEN", None)
+
         if self.cfg["use_unsloth"]:
             # -------- Unsloth QLoRA path --------
             print("[Unsloth] Loading 4-bit model:", self.cfg["base_model_id_unsloth"])
@@ -475,41 +451,47 @@ class BengaliEmpathyFineTuner:
                 max_seq_length=self.cfg["max_seq_length"],
                 dtype=None,
                 load_in_4bit=True,
+                token=hf_token,         # NEW: pass token for gated repo
             )
             self.strategy_name = "unsloth_qlora"
         else:
             # -------- HF QLoRA (bitsandbytes) path --------
             if not HAVE_BNB:
                 raise ImportError("bitsandbytes not available for HF QLoRA backend.")
-            print("[HF QLoRA] Loading 4-bit model:", self.cfg["meta-llama/Llama-3.1-8B-Instruct"])
-    
+
+            print("[HF QLoRA] Loading 4-bit model:", self.cfg["base_model_id_hf"])
+
             bnb_config = BitsAndBytesConfig(
                 load_in_4bit=True,
                 bnb_4bit_use_double_quant=True,
                 bnb_4bit_quant_type="nf4",
                 bnb_4bit_compute_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float16,
             )
-    
-            self.tokenizer = AutoTokenizer.from_pretrained(self.cfg["meta-llama/Llama-3.1-8B-Instruct"], use_fast=True)
+
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                self.cfg["base_model_id_hf"],
+                use_fast=True,
+                token=hf_token,        # NEW
+            )
             self.tokenizer.pad_token = self.tokenizer.eos_token
             self.tokenizer.padding_side = "right"
-    
+
             self.model = AutoModelForCausalLM.from_pretrained(
-                self.cfg["meta-llama/Llama-3.1-8B-Instruct"],
+                self.cfg["base_model_id_hf"],
                 quantization_config=bnb_config,
                 device_map="auto",
+                token=hf_token,        # NEW
             )
             self.model.config.use_cache = False
-    
+
             from peft import prepare_model_for_kbit_training
             self.model = prepare_model_for_kbit_training(self.model)
-    
+
             self.strategy_name = "hf_qlora"
-    
+
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.tokenizer.padding_side = "right"
         return self.tokenizer, self.model
-
 
     # ------------------------- Apply LoRA -------------------------------
 
@@ -680,6 +662,15 @@ class BengaliEmpathyFineTuner:
         exp_id = self._log_experiment(self.train_loss, eval_loss, metrics)
         self._log_responses(exp_id, inputs_logged, outputs_logged)
         return metrics
+
+    # ------------------------- Save adapters ----------------------------
+    def save_lora_adapters(self):
+        """Simple save – saves full PEFT model + tokenizer."""
+        os.makedirs(self.cfg["output_dir"], exist_ok=True)
+        if self.model is not None:
+            self.model.save_pretrained(self.cfg["output_dir"])
+        if self.tokenizer is not None:
+            self.tokenizer.save_pretrained(self.cfg["output_dir"])
 
 
 # ===========================
