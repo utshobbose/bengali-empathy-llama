@@ -1,3 +1,6 @@
+# ===========================
+# bengali_empathy_finetuner.py AS NOTEBOOK CELL
+# ===========================
 import os
 import re
 import json
@@ -12,6 +15,19 @@ import torch
 from datasets import Dataset, DatasetDict
 from tqdm.auto import tqdm
 
+# --------------------------------------------------------
+# Unsloth FIRST (for best optimisation) - before transformers/peft
+# --------------------------------------------------------
+try:
+    from unsloth import FastLanguageModel
+    HAVE_UNSLOTH = True
+except Exception:
+    FastLanguageModel = None
+    HAVE_UNSLOTH = False
+
+# --------------------------------------------------------
+# Transformers & Trainer
+# --------------------------------------------------------
 from transformers import (
     AutoTokenizer,
     AutoModelForCausalLM,
@@ -43,45 +59,26 @@ except Exception:
     BitsAndBytesConfig = None
     HAVE_BNB = False
 
-# Unsloth for main QLoRA backend
-try:
-    from unsloth import FastLanguageModel
-    HAVE_UNSLOTH = True
-except Exception:
-    FastLanguageModel = None
-    HAVE_UNSLOTH = False
-
 
 class BengaliEmpathyFineTuner:
     """
-    SINGLE OOP CLASS implementing the full pipeline:
-
-      - load & preprocess Bengali empathetic conversation dataset
-      - optional sentence embeddings for analysis
-      - prepare instruction data for LLaMA 3.1-8B-Instruct
-      - build tokenizer & model (Unsloth QLoRA or HF QLoRA)
-      - apply LoRA on attention layers
-      - train with Trainer
-      - evaluate (loss, perplexity, BLEU, ROUGE-L)
-      - save adapters
-      - reload for inference + interactive demo
+    SINGLE OOP CLASS implementing the full pipeline.
     """
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         # Default configuration
         self.cfg: Dict[str, Any] = {
-            # Paths
-            "data_path": "data/bengali_empathetic_conversations.csv",
-            "output_dir": "outputs/llama31_bengali_empathy",
-            # used as base for JSONL logs (we just reuse the name)
-            "log_base_path": "outputs/llama_empathy_experiments.db",
+            # Paths (Kaggle defaults)
+            "data_path": "/kaggle/input/bengali-empathetic-conversations-corpus/BengaliEmpatheticConversationsCorpus .csv",
+            "output_dir": "/kaggle/working/llama31_bengali_empathy",
+            "log_base_path": "/kaggle/working/llama_empathy_experiments.db",
 
             # Model IDs
             "base_model_id_unsloth": "unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit",
             "base_model_id_hf": "meta-llama/Meta-Llama-3.1-8B-Instruct",
 
             # Strategy: Unsloth QLoRA (True) or HF QLoRA (False)
-            "use_unsloth": True,
+            "use_unsloth": False,
 
             # Training
             "max_seq_length": 2048,
@@ -219,14 +216,6 @@ class BengaliEmpathyFineTuner:
         return text
 
     def load_raw_dataset(self) -> pd.DataFrame:
-        """
-        Load Kaggle Bengali Empathetic Conversations Corpus CSV and
-        convert each row into a 2-turn dialogue: user + assistant.
-
-        Robust to small naming differences:
-        - Topic vs Topics
-        - Question vs Questions
-        """
         path = self.cfg["data_path"]
         if not os.path.exists(path):
             raise FileNotFoundError(f"Dataset not found at {path}")
@@ -238,7 +227,6 @@ class BengaliEmpathyFineTuner:
 
         cols = set(df_raw.columns)
 
-        # Map plural/singular variants to canonical names
         col_map: Dict[str, str] = {}
         if "Topic" in cols:
             col_map["Topic"] = "Topic"
@@ -282,24 +270,8 @@ class BengaliEmpathyFineTuner:
             user_text = " ".join(user_parts).strip()
 
             dialogue_id = i
-            # Turn 0: user
-            records.append(
-                {
-                    "dialogue_id": dialogue_id,
-                    "turn_id": 0,
-                    "role": "user",
-                    "text": user_text,
-                }
-            )
-            # Turn 1: assistant
-            records.append(
-                {
-                    "dialogue_id": dialogue_id,
-                    "turn_id": 1,
-                    "role": "assistant",
-                    "text": answer,
-                }
-            )
+            records.append({"dialogue_id": dialogue_id, "turn_id": 0, "role": "user", "text": user_text})
+            records.append({"dialogue_id": dialogue_id, "turn_id": 1, "role": "assistant", "text": answer})
 
         self.raw_df = pd.DataFrame(records)
         return self.raw_df
@@ -447,14 +419,56 @@ class BengaliEmpathyFineTuner:
 
     # ------------------ Build model & tokenizer ------------------------
 
+    # def build_tokenizer_and_model(self):
+    #     if self.cfg["use_unsloth"]:
+    #         if not HAVE_UNSLOTH:
+    #             raise ImportError(
+    #                 "Unsloth not installed."
+    #             )
+    #         print("[Unsloth] Loading 4-bit model:", self.cfg["base_model_id_unsloth"])
+    #         self.model, self.tokenizer = FastLanguageModel.from_pretrained(
+    #             model_name=self.cfg["base_model_id_unsloth"],
+    #             max_seq_length=self.cfg["max_seq_length"],
+    #             dtype=None,
+    #             load_in_4bit=True,
+    #         )
+    #         self.strategy_name = "unsloth_qlora"
+    #     else:
+    #         if not HAVE_BNB:
+    #             raise ImportError("bitsandbytes not available for HF QLoRA backend.")
+    #         print("[HF QLoRA] Loading 4-bit model:", self.cfg["base_model_id_hf"])
+    #         bnb_config = BitsAndBytesConfig(
+    #             load_in_4bit=True,
+    #             bnb_4bit_use_double_quant=True,
+    #             bnb_4bit_quant_type="nf4",
+    #             bnb_4bit_compute_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float16,
+    #         )
+    #         self.tokenizer = AutoTokenizer.from_pretrained(self.cfg["base_model_id_hf"], use_fast=True)
+    #         self.tokenizer.pad_token = self.tokenizer.eos_token
+    #         self.tokenizer.padding_side = "right"
+    #         self.model = AutoModelForCausalLM.from_pretrained(
+    #             self.cfg["base_model_id_hf"],
+    #             quantization_config=bnb_config,
+    #             device_map="auto",
+    #         )
+    #         self.model.config.use_cache = False
+    #         from peft import prepare_model_for_kbit_training
+    #         self.model = prepare_model_for_kbit_training(self.model)
+    #         self.strategy_name = "hf_qlora"
+
+    #     self.tokenizer.pad_token = self.tokenizer.eos_token
+    #     self.tokenizer.padding_side = "right"
+    #     return self.tokenizer, self.model
+
     def build_tokenizer_and_model(self):
+        # If config says "use_unsloth" but Unsloth import failed, fall back automatically
+        if self.cfg["use_unsloth"] and not HAVE_UNSLOTH:
+            print("[WARN] use_unsloth=True but Unsloth is not installed. "
+                  "Falling back to HF QLoRA backend.")
+            self.cfg["use_unsloth"] = False
+    
         if self.cfg["use_unsloth"]:
-            if not HAVE_UNSLOTH:
-                raise ImportError(
-                    "Unsloth not installed. On Kaggle:\n"
-                    '!pip install --upgrade --no-cache-dir "unsloth[colab-new] @ '
-                    'git+https://github.com/unslothai/unsloth.git"'
-                )
+            # -------- Unsloth QLoRA path --------
             print("[Unsloth] Loading 4-bit model:", self.cfg["base_model_id_unsloth"])
             self.model, self.tokenizer = FastLanguageModel.from_pretrained(
                 model_name=self.cfg["base_model_id_unsloth"],
@@ -464,31 +478,38 @@ class BengaliEmpathyFineTuner:
             )
             self.strategy_name = "unsloth_qlora"
         else:
+            # -------- HF QLoRA (bitsandbytes) path --------
             if not HAVE_BNB:
                 raise ImportError("bitsandbytes not available for HF QLoRA backend.")
-            print("[HF QLoRA] Loading 4-bit model:", self.cfg["base_model_id_hf"])
+            print("[HF QLoRA] Loading 4-bit model:", self.cfg["meta-llama/Llama-3.1-8B-Instruct"])
+    
             bnb_config = BitsAndBytesConfig(
                 load_in_4bit=True,
                 bnb_4bit_use_double_quant=True,
                 bnb_4bit_quant_type="nf4",
                 bnb_4bit_compute_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float16,
             )
-            self.tokenizer = AutoTokenizer.from_pretrained(self.cfg["base_model_id_hf"], use_fast=True)
+    
+            self.tokenizer = AutoTokenizer.from_pretrained(self.cfg["meta-llama/Llama-3.1-8B-Instruct"], use_fast=True)
             self.tokenizer.pad_token = self.tokenizer.eos_token
             self.tokenizer.padding_side = "right"
+    
             self.model = AutoModelForCausalLM.from_pretrained(
-                self.cfg["base_model_id_hf"],
+                self.cfg["meta-llama/Llama-3.1-8B-Instruct"],
                 quantization_config=bnb_config,
                 device_map="auto",
             )
             self.model.config.use_cache = False
+    
             from peft import prepare_model_for_kbit_training
             self.model = prepare_model_for_kbit_training(self.model)
+    
             self.strategy_name = "hf_qlora"
-
+    
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.tokenizer.padding_side = "right"
         return self.tokenizer, self.model
+
 
     # ------------------------- Apply LoRA -------------------------------
 
@@ -660,102 +681,26 @@ class BengaliEmpathyFineTuner:
         self._log_responses(exp_id, inputs_logged, outputs_logged)
         return metrics
 
-    # ---------------------- Save / load / demo -------------------------
 
-    def save_lora_adapters(self):
-        if self.model is None or self.tokenizer is None:
-            raise RuntimeError("Nothing to save – model/tokenizer missing.")
-        os.makedirs(self.cfg["output_dir"], exist_ok=True)
-        self.model.save_pretrained(self.cfg["output_dir"])
-        self.tokenizer.save_pretrained(self.cfg["output_dir"])
-        print(f"Saved adapters + tokenizer to {self.cfg['output_dir']}")
+# ===========================
+# Run the pipeline
+# ===========================
+config = {
+    # override anything if needed
+    "num_train_epochs": 1.0,  # start with 1 epoch to test
+}
 
-    def load_for_inference(self, adapter_dir: Optional[str] = None):
-        adapter_dir = adapter_dir or self.cfg["output_dir"]
-        if self.cfg["use_unsloth"]:
-            if not HAVE_UNSLOTH:
-                raise ImportError("Unsloth not installed.")
-            print(f"[Unsloth] Loading LoRA model from {adapter_dir}")
-            self.model, self.tokenizer = FastLanguageModel.from_pretrained(
-                model_name=adapter_dir,
-                max_seq_length=self.cfg["max_seq_length"],
-                dtype=None,
-                load_in_4bit=True,
-            )
-            FastLanguageModel.for_inference(self.model)
-        else:
-            print(f"[HF] Loading LoRA model from {adapter_dir}")
-            self.tokenizer = AutoTokenizer.from_pretrained(adapter_dir)
-            self.tokenizer.pad_token = self.tokenizer.eos_token
-            self.tokenizer.padding_side = "right"
-            self.model = AutoModelForCausalLM.from_pretrained(adapter_dir, device_map="auto")
-            self.model.eval()
-        return self.tokenizer, self.model
+ft = BengaliEmpathyFineTuner(config)
 
-    def interactive_demo(self):
-        if self.model is None or self.tokenizer is None:
-            raise RuntimeError("Load model + tokenizer first (load_for_inference).")
+print("Loading raw dataset ..."); ft.load_raw_dataset()
+print("Preprocessing ..."); ft.preprocess_text()
+print("Building embeddings (optional) ... (skipped on Kaggle)")
+# ft.build_embeddings()  # still commented to avoid flash-attn issue
 
-        device = next(self.model.parameters()).device
-        print("বাংলা সহানুভূতিশীল কাউন্সেলর ডেমো। 'quit' লিখলে বের হয়ে যাবেন।")
-        while True:
-            user_msg = input("👤 আপনি: ").strip()
-            if user_msg.lower() in {"quit", "exit"}:
-                break
-            messages = [
-                {"role": "system", "content": self.cfg["system_prompt"]},
-                {"role": "user", "content": user_msg},
-            ]
-            chat_str = self.tokenizer.apply_chat_template(
-                messages,
-                tokenize=False,
-                add_generation_prompt=True,
-            )
-            enc = self.tokenizer(chat_str, return_tensors="pt")
-            enc = {k: v.to(device) for k, v in enc.items()}
-            with torch.no_grad():
-                gen_ids = self.model.generate(
-                    **enc,
-                    max_new_tokens=self.cfg["eval_max_new_tokens"],
-                    do_sample=True,
-                    top_p=0.9,
-                    temperature=0.7,
-                )
-            gen_only = gen_ids[0][enc["input_ids"].shape[1]:]
-            reply = self.tokenizer.decode(gen_only, skip_special_tokens=True).strip()
-            print("🤖 কাউন্সেলর:", reply)
-
-
-def main():
-    # Local debug config (no heavy training). For Kaggle you’ll change this.
-    config = {
-        "data_path": "data/bengali_empathetic_conversations.csv",
-        "output_dir": "outputs/llama31_bengali_empathy",
-        "log_base_path": "outputs/llama_empathy_experiments.db",
-        "use_unsloth": False,       # local: avoid Unsloth, just debug data
-        "max_seq_length": 512,
-        "num_train_epochs": 0.1,
-        "gradient_accumulation_steps": 2,
-    }
-
-    ft = BengaliEmpathyFineTuner(config)
-
-    print("Loading raw dataset ...")
-    ft.load_raw_dataset()
-    print("Preprocessing ...")
-    ft.preprocess_text()
-    print("Building embeddings (optional) ...")
-    ft.build_embeddings()
-
-    # Uncomment these only if your local environment supports HF QLoRA:
-    # ft.build_tokenizer_and_model()
-    # ft.prepare_instruction_dataset()
-    # ft.apply_lora()
-    # ft.train_model()
-    # metrics = ft.evaluate_model()
-    # print("Metrics:", metrics)
-    # ft.save_lora_adapters()
-
-
-if __name__ == "__main__":
-    main()
+print("Loading model ..."); ft.build_tokenizer_and_model()
+print("Preparing instruction dataset ..."); ft.prepare_instruction_dataset()
+print("Applying LoRA ..."); ft.apply_lora()
+print("Training ..."); ft.train_model()
+print("Evaluating ..."); metrics = ft.evaluate_model()
+print("Metrics:", metrics)
+print("Saving adapters ..."); ft.save_lora_adapters()
