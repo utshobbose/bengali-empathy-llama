@@ -108,11 +108,11 @@ class BengaliEmpathyFineTuner:
             "eval_max_new_tokens": 128,
 
             # LoRA hyperparams – attention layers only
-            "lora_r": 16,
-            "lora_alpha": 32,
-            "lora_dropout": 0.05,
-            "lora_target_modules": ("q_proj", "k_proj", "v_proj", "o_proj"),
-
+            "lora_r": 8,
+            "lora_alpha": 16,
+            "lora_dropout": 0.0,
+            "lora_target_modules": ("q_proj", "k_proj", "v_proj"),
+            #, "o_proj"
             # Embeddings
             "embedding_model_name": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
 
@@ -532,8 +532,8 @@ class BengaliEmpathyFineTuner:
         if self.model is None or self.tokenizer is None:
             raise RuntimeError("Call build_tokenizer_and_model() and apply_lora() first.")
 
-        if self.cfg["use_unsloth"] and HAVE_UNSLOTH:
-            FastLanguageModel.for_training(self.model)
+        # if self.cfg["use_unsloth"] and HAVE_UNSLOTH:
+        #     FastLanguageModel.for_training(self.model)
 
         bf16 = torch.cuda.is_available() and torch.cuda.is_bf16_supported()
         fp16 = torch.cuda.is_available() and not bf16
@@ -547,14 +547,14 @@ class BengaliEmpathyFineTuner:
             warmup_ratio=self.cfg["warmup_ratio"],
             weight_decay=self.cfg["weight_decay"],
             logging_steps=self.cfg["logging_steps"],
-            evaluation_strategy="epoch",
-            save_strategy="epoch",
+            # evaluation_strategy="epoch",
+            # save_strategy="epoch",
             save_total_limit=self.cfg["save_total_limit"],
             bf16=bf16,
             fp16=fp16,
-            report_to="none",
-            load_best_model_at_end=True,
-            metric_for_best_model="eval_loss",
+            report_to="none"
+            # load_best_model_at_end=True,
+            # metric_for_best_model="eval_loss",
         )
 
         self.trainer = Trainer(
