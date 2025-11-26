@@ -1,3 +1,10 @@
-bitsandbytes 
-accelerate
-"unsloth[colab-new]"
+unsloth
+accelerate 
+peft 
+trl 
+transformers==4.57.1 
+datasets 
+sentencepiece 
+evaluate 
+sacrebleu 
+rouge-score
