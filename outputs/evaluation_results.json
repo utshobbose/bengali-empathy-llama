@@ -1,0 +1,64 @@
+{
+  "summary": {
+    "total_tests": 5,
+    "average_empathy_score": 40.0,
+    "timestamp": "2025-11-29T14:19:42.008407"
+  },
+  "detailed_results": [
+    {
+      "test_id": 1,
+      "input": "আমি খুব দুঃখিত এবং একাকী অনুভব করছি। কী করব?",
+      "generated_response": "আমি বুঝতে পারি, আমি একটি আঘাত হলেও আমার মনে হয় আমি খুব ভালো লাগছি। আমি আশা করি আপনি সত্যিই ভালো হবেন, এবং আপনি সবসময�",
+      "has_empathy_words": 0,
+      "has_acknowledgment": 1,
+      "has_support": 0,
+      "appropriate_length": 1,
+      "total_score": 2,
+      "percentage": 50.0
+    },
+    {
+      "test_id": 2,
+      "input": "আমার চাকরি চলে গেছে এবং আমি হতাশ।",
+      "generated_response": "আমি খুব দুঃখিত, আমি আশা করি আপনি এটা সম্পর্কে কল্পনা করার জন্য একটি ভাল সময় পেতে পারেন এবং তারপর থেকে আপনি একটি নতুন কাজ �",
+      "has_empathy_words": 1,
+      "has_acknowledgment": 0,
+      "has_support": 0,
+      "appropriate_length": 1,
+      "total_score": 2,
+      "percentage": 50.0
+    },
+    {
+      "test_id": 3,
+      "input": "পরীক্ষায় খারাপ ফলাফল হয়েছে, আমি কি ব্যর্থ?",
+      "generated_response": "আমি একটি পরীক্ষা কি মানে? এটা কি একটি বিশেষ কিছু জন্য যেমন একটি ডাক্তারের পরীক্ষা? আমি আশা করি আপনি ভালো করবেন. আমি যখন প্রথম",
+      "has_empathy_words": 0,
+      "has_acknowledgment": 0,
+      "has_support": 0,
+      "appropriate_length": 1,
+      "total_score": 1,
+      "percentage": 25.0
+    },
+    {
+      "test_id": 4,
+      "input": "আমার পরিবারের সাথে ঝগড়া হয়েছে।",
+      "generated_response": "আমি খুব দুঃখিত. আপনি কি করেছেন যার কারণে এটি ঘটেছে? আপনার পরিবারের সাথে ঝগড়া হলে আমি খুব দুঃখিত. আমি আপনার জন্য আশা করি আ�",
+      "has_empathy_words": 1,
+      "has_acknowledgment": 0,
+      "has_support": 0,
+      "appropriate_length": 1,
+      "total_score": 2,
+      "percentage": 50.0
+    },
+    {
+      "test_id": 5,
+      "input": "আমি অনেক চাপে আছি এবং ঘুমাতে পারছি না।",
+      "generated_response": "আমি এটা কল্পনা করতে পারি না. আমি একটি মস্তিষ্ক মজুদ বোধ করছি. আমি এটা শেষ করার জন্য কী করতে পারি? আপনি কি করেন? আমি কঠোরভাবে �",
+      "has_empathy_words": 0,
+      "has_acknowledgment": 0,
+      "has_support": 0,
+      "appropriate_length": 1,
+      "total_score": 1,
+      "percentage": 25.0
+    }
+  ]
+}
