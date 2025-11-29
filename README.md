@@ -189,6 +189,8 @@ datasets.map(..., num_proc=1)
 bengali-empathy-llama/
 ├── data/
 │   └── bengali_empathetic_conversations.csv
+├── evaluation/
+    ├──sample_responses.json
 ├── outputs/
 │   ├── llama31_bengali_empathy/          # LoRA adapters
 │   ├── llama_empathy_experiments_*.jsonl # Training logs
