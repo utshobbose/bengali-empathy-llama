@@ -46,9 +46,9 @@ login(token=HF_TOKEN)
 class BengaliEmpathyFineTuner:
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.cfg: Dict[str, Any] = {
-            "data_path": r"D:\bengali-empathy-llama\data\bengali_empathetic_conversations.csv",
-            "output_dir": r"D:\bengali-empathy-llama\outputs\llama31_bengali_empathy",
-            "log_base_path": r"D:\bengali-empathy-llama\outputs\llama_empathy_experiments.db",
+            "data_path": r"E:\bengali-empathy-llama\data\bengali_empathetic_conversations.csv",
+            "output_dir": r"E:\bengali-empathy-llama\outputs\llama31_bengali_empathy",
+            "log_base_path": r"E:\bengali-empathy-llama\outputs\llama_empathy_experiments.db",
 
             "base_model_id_hf": "meta-llama/Llama-3.1-8B-Instruct",
 
