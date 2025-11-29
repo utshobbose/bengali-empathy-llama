@@ -1,4 +1,3 @@
-````markdown
 # Bengali Empathy Fine-Tuned LLaMA 3.1-8B 🇧🇩🤝
 
 Fine-tuning **Meta’s LLaMA 3.1-8B-Instruct** for **Bengali empathetic conversations** using **QLoRA (4-bit)** on **consumer hardware**.
@@ -318,4 +317,3 @@ Contributions are welcome!
 4. Push to branch: `git push origin feature/improvement`
 5. Open a Pull Request
 
-```
