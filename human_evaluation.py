@@ -257,8 +257,8 @@ class BengaliEmpathyEvaluator:
 
 if __name__ == "__main__":
     BASE_MODEL = "meta-llama/Llama-3.1-8B-Instruct"
-    ADAPTER_PATH = r"D:\bengali-empathy-llama\outputs\llama31_bengali_empathy"
-    OUTPUT_PATH = r"D:\bengali-empathy-llama\outputs\evaluation_results.json"
+    ADAPTER_PATH = r"E:\bengali-empathy-llama\outputs\llama31_bengali_empathy"
+    OUTPUT_PATH = r"E:\bengali-empathy-llama\outputs\evaluation_results.json"
     
     # Initialize evaluator
     evaluator = BengaliEmpathyEvaluator(BASE_MODEL, ADAPTER_PATH)
