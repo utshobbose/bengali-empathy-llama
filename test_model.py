@@ -200,7 +200,7 @@ def print_usage():
 if __name__ == "__main__":
     # Configure paths
     BASE_MODEL = "meta-llama/Llama-3.1-8B-Instruct"
-    ADAPTER_PATH = r"D:\bengali-empathy-llama\outputs\llama31_bengali_empathy"
+    ADAPTER_PATH = r"E:\bengali-empathy-llama\outputs\llama31_bengali_empathy"
     
     # Default test questions for batch mode
     DEFAULT_TEST_QUESTIONS = [
@@ -213,7 +213,7 @@ if __name__ == "__main__":
     
     # Parse command line arguments
     mode = "interactive"  # default
-    output_file = r"D:\bengali-empathy-llama\outputs\test_results.json"
+    output_file = r"E:\bengali-empathy-llama\outputs\test_results.json"
     
     if len(sys.argv) > 1:
         mode = sys.argv[1].lower()
