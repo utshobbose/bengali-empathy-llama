@@ -1,4 +1,4 @@
-# Bengali Empathy Fine-Tuned LLaMA 3.1-8B 🇧🇩🤝
+# Bengali Empathy Fine-Tuned LLaMA 3.1-8B 🇧🇩
 
 Fine-tuning **Meta’s LLaMA 3.1-8B-Instruct** for **Bengali empathetic conversations** using **QLoRA (4-bit)** on **consumer hardware**.
 
